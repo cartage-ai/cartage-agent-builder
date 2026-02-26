@@ -1,0 +1,14 @@
+# Blaxel sandbox template for cartage-agent dev previews.
+# Deploy: bl deploy (from this directory)
+
+name = "cartage-agent-sandbox"
+type = "sandbox"
+description = "Bun + git sandbox for cartage-agent Next.js previews"
+
+[runtime]
+memory = 4096
+
+[[runtime.ports]]
+name = "app"
+target = 3000
+protocol = "tcp"
