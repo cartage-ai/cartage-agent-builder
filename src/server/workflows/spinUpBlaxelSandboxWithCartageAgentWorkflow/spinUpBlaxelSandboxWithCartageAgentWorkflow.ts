@@ -2,198 +2,161 @@
  * Services and models used in this workflow are accessed only via d.providers (allProviders).
  * Do not import BlaxelService, EnvironmentModel, or other services/models directly.
  *
- * Flow: create volume (2GB) → create sandbox with volume at /workspace → clone + bun install
- * on volume (avoids tmpfs NoSpaceLeft and avoids 413 on large file upload). Then start dev server.
+ * Flow: create sandbox → start dev server (repo + node_modules are baked into the image).
+ * No volume, no clone, no install at runtime—all of that happens at image build time.
  */
 import { XError } from "@/utils/error.utils"
 import logging from "@/utils/logger.utils"
 import { allProviders } from "../kitchenSinkProviders"
 import {
-  generateSandboxName,
-  waitUntilAppReady,
-  waitUntilDeployed,
+    generateSandboxName,
+    waitUntilAppReady,
+    waitUntilDeployed,
 } from "./utils/spinUpBlaxelSandboxWithCartageAgentWorkflow.utils"
 
-const CARTAGE_AGENT_REPO = "https://github.com/cartage-ai/cartage-agent.git"
-/** Install and run on volume to avoid tmpfs NoSpaceLeft. */
-const WORKSPACE_MOUNT = "/workspace"
-const CARTAGE_AGENT_PATH = `${WORKSPACE_MOUNT}/cartage-agent`
-/** Tier 1 max volume size (MiB). */
-const VOLUME_SIZE_MB = 2048
-/** Port the cartage-agent app listens on inside the sandbox. This repo runs on 3001. */
+/** Path where cartage-agent is baked into the sandbox image. */
+const CARTAGE_AGENT_PATH = "/app/cartage-agent"
+/** Port the cartage-agent app listens on inside the sandbox. */
 const SANDBOX_APP_PORT = 3000
 
 export type SpinUpBlaxelSandboxWithCartageAgentWorkflowParams = {
-  createdBy?: string
-  orgId?: string
+    createdBy?: string
+    orgId?: string
 }
 
 export type SpinUpBlaxelSandboxWithCartageAgentWorkflowResult = {
-  environmentId: string
-  sandboxName: string
-  sandboxUrl: string
-  previewUrl: string
-  status: string
+    environmentId: string
+    sandboxName: string
+    sandboxUrl: string
+    previewUrl: string
+    status: string
 }
 
 export type SpinUpBlaxelSandboxWithCartageAgentWorkflowDependencies = {
-  providers: typeof allProviders
+    providers: typeof allProviders
 }
 
 export type SpinUpBlaxelSandboxWithCartageAgentWorkflow = (
-  params: SpinUpBlaxelSandboxWithCartageAgentWorkflowParams
+    params: SpinUpBlaxelSandboxWithCartageAgentWorkflowParams,
 ) => Promise<SpinUpBlaxelSandboxWithCartageAgentWorkflowResult>
 
 export const spinUpBlaxelSandboxWithCartageAgentWorkflowWithDeps =
-  (
-    d: SpinUpBlaxelSandboxWithCartageAgentWorkflowDependencies
-  ): SpinUpBlaxelSandboxWithCartageAgentWorkflow =>
-  async (params) => {
-    logging.info("Starting spinUpBlaxelSandboxWithCartageAgentWorkflow", params)
+    (
+        d: SpinUpBlaxelSandboxWithCartageAgentWorkflowDependencies,
+    ): SpinUpBlaxelSandboxWithCartageAgentWorkflow =>
+    async (params) => {
+        logging.info("Starting spinUpBlaxelSandboxWithCartageAgentWorkflow", params)
 
-    const githubToken = process.env.GITHUB_TOKEN
-    if (!githubToken) {
-      throw new XError({
-        message:
-          "GITHUB_TOKEN is required to clone cartage-agent in the sandbox (set in env or Secret Manager)",
-        code: "GITHUB_TOKEN_MISSING",
-      })
-    }
-
-    const sandboxImage = process.env.BLAXEL_SANDBOX_IMAGE
-    if (!sandboxImage) {
-      throw new XError({
-        message:
-          "BLAXEL_SANDBOX_IMAGE is required (deploy blaxel-sandbox template and set in Secret Manager)",
-        code: "BLAXEL_SANDBOX_IMAGE_MISSING",
-      })
-    }
-
-    try {
-      const orgId = params.orgId ?? "default"
-      const createdBy = params.createdBy ?? "anonymous"
-      const sandboxName = generateSandboxName()
-      const volumeName = `vol-${sandboxName}`
-
-      // 1. Create volume (2GB) so clone + bun install have space (avoids tmpfs NoSpaceLeft)
-      logging.info("Creating volume and sandbox", { volumeName })
-      await d.providers.BlaxelService.createVolume(volumeName, VOLUME_SIZE_MB)
-
-      // 2. Create sandbox with volume at /workspace
-      await d.providers.BlaxelService.createSandbox({
-        metadata: { name: sandboxName },
-        spec: {
-          runtime: {
-            image: sandboxImage,
-            memory: 4096,
-            ports: [{ target: SANDBOX_APP_PORT }],
-            ttl: "24h",
-          },
-          volumes: [
-            { name: volumeName, mountPath: WORKSPACE_MOUNT, readOnly: false },
-          ],
-        },
-      })
-
-      const sandboxUrl = await waitUntilDeployed(
-        (name) => d.providers.BlaxelService.getSandbox(name),
-        sandboxName
-      )
-
-      const preview = await d.providers.BlaxelService.createPreview(sandboxName, {
-        port: SANDBOX_APP_PORT,
-        public: true,
-      })
-      const previewUrlDisplay =
-        preview.spec?.url ??
-        `${sandboxUrl.replace(/\/$/, "").replace(new RegExp(`:${SANDBOX_APP_PORT}$`), "")}:${SANDBOX_APP_PORT}`
-
-      // 4. Clone into volume (no large upload; avoids 413)
-      const cloneCmd = `git -c credential.helper='!f() { echo "username=x-access-token"; echo "password=$GITHUB_TOKEN"; }; f' clone ${CARTAGE_AGENT_REPO} ${CARTAGE_AGENT_PATH}`
-      const cloneResult = await d.providers.BlaxelService.execProcess(sandboxUrl, {
-        command: cloneCmd,
-        env: { GITHUB_TOKEN: githubToken },
-        waitForCompletion: true,
-        timeout: 120,
-      })
-      if (cloneResult.exitCode !== 0) {
-        throw new XError({
-          message: "Git clone failed in sandbox",
-          code: "BLAXEL_CLONE_FAILED",
-          data: { stderr: cloneResult.stderr, stdout: cloneResult.stdout },
-        })
-      }
-
-      // 5. bun install on volume — force temp/cache onto volume so node-gyp doesn't use tmpfs
-      logging.info("Running bun install in sandbox (on volume)", {
-        step: "bun-install",
-      })
-      const installResult = await d.providers.BlaxelService.execProcess(
-        sandboxUrl,
-        {
-          name: "bun-install",
-          command:
-            "mkdir -p /workspace/tmp /workspace/.cache && TMPDIR=/workspace/tmp XDG_CACHE_HOME=/workspace/.cache bun install 2>&1",
-          workingDir: CARTAGE_AGENT_PATH,
-          waitForCompletion: true,
-          timeout: 180,
+        const sandboxImage = process.env.BLAXEL_SANDBOX_IMAGE
+        if (!sandboxImage) {
+            throw new XError({
+                message:
+                    "BLAXEL_SANDBOX_IMAGE is required (set to 'cartage-agent-sandbox' in Secret Manager)",
+                code: "BLAXEL_SANDBOX_IMAGE_MISSING",
+            })
         }
-      )
-      if (installResult.exitCode !== 0) {
-        throw new XError({
-          message:
-            "bun install failed in sandbox. To see full output: bl logs sandbox <sandboxName> bun-install",
-          code: "BLAXEL_INSTALL_FAILED",
-          data: {
-            sandboxName,
-            exitCode: installResult.exitCode,
-            stdout: installResult.stdout,
-            stderr: installResult.stderr,
-            logs: installResult.logs,
-          },
-        })
-      }
 
-      // 6. Start dev server
-      await d.providers.BlaxelService.execProcess(sandboxUrl, {
-        name: "dev-server",
-        command: "bun run dev -- --hostname 0.0.0.0",
-        workingDir: CARTAGE_AGENT_PATH,
-        waitForCompletion: false,
-      })
+        // Env vars the cartage-agent dev server needs to start (loaded from Secret Manager).
+        const SANDBOX_ENV_KEYS = [
+            "SANDBOX_LINGODOTDEV_API_KEY",
+            "SANDBOX_GCP_TEST_PROJECT_ID",
+            "SANDBOX_GCP_TEST_PROJECT_CLIENT_EMAIL",
+            "SANDBOX_GCP_TEST_PROJECT_CLIENT_PRIVATE_KEY",
+            "SANDBOX_GCP_DEV_PROJECT_ID",
+            "SANDBOX_GCP_DEV_PROJECT_CLIENT_EMAIL",
+            "SANDBOX_GCP_DEV_PROJECT_CLIENT_PRIVATE_KEY",
+        ] as const
 
-      await waitUntilAppReady(
-        (url, req) => d.providers.BlaxelService.execProcess(url, req),
-        sandboxUrl,
-        SANDBOX_APP_PORT
-      )
+        const missingEnvKey = SANDBOX_ENV_KEYS.find((k) => !process.env[k])
+        if (missingEnvKey) {
+            throw new XError({
+                message: `${missingEnvKey} is required (set in Secret Manager for the sandbox app)`,
+                code: "SANDBOX_ENV_MISSING",
+                data: { missingEnvKey },
+            })
+        }
 
-      const envRecord = await d.providers.EnvironmentModel.create({
-        orgId,
-        sandboxName,
-        sandboxUrl,
-        previewUrl: previewUrlDisplay,
-        createdBy,
-        status: "active",
-      })
+        const sandboxEnvs = SANDBOX_ENV_KEYS.map((name) => ({
+            name: name.replace(/^SANDBOX_/, ""),
+            value: process.env[name] as string,
+        }))
 
-      return {
-        environmentId: envRecord.id,
-        sandboxName,
-        sandboxUrl,
-        previewUrl: previewUrlDisplay,
-        status: envRecord.status,
-      }
-    } catch (error) {
-      throw new XError({
-        message: "spinUpBlaxelSandboxWithCartageAgentWorkflow generic catch error",
-        data: params,
-        cause: error as Error,
-      })
+        try {
+            const orgId = params.orgId ?? "default"
+            const createdBy = params.createdBy ?? "anonymous"
+            const sandboxName = generateSandboxName()
+
+            // 1. Create sandbox (repo + node_modules are baked into the image)
+            logging.info("Creating sandbox", { sandboxName })
+            await d.providers.BlaxelService.createSandbox({
+                metadata: { name: sandboxName },
+                spec: {
+                    runtime: {
+                        image: sandboxImage,
+                        memory: 8192,
+                        ports: [{ target: SANDBOX_APP_PORT }],
+                        ttl: "24h",
+                        envs: sandboxEnvs,
+                    },
+                },
+            })
+
+            const sandboxUrl = await waitUntilDeployed(
+                (name) => d.providers.BlaxelService.getSandbox(name),
+                sandboxName,
+            )
+
+            const preview = await d.providers.BlaxelService.createPreview(sandboxName, {
+                port: SANDBOX_APP_PORT,
+                public: true,
+            })
+            const previewUrlDisplay =
+                preview.spec?.url ??
+                `${sandboxUrl.replace(/\/$/, "").replace(new RegExp(`:${SANDBOX_APP_PORT}$`), "")}:${SANDBOX_APP_PORT}`
+
+            // 2. Start dev server (repo + node_modules already in image at CARTAGE_AGENT_PATH)
+            logging.info("Starting dev server", { sandboxName })
+            await d.providers.BlaxelService.execProcess(sandboxUrl, {
+                name: "dev-server",
+                command: `sh -c "PORT=${SANDBOX_APP_PORT} bun run dev -- --hostname 0.0.0.0"`,
+                workingDir: CARTAGE_AGENT_PATH,
+                waitForCompletion: false,
+            })
+            logging.info("Dev server started", { sandboxName })
+
+            await waitUntilAppReady(
+                (url, req) => d.providers.BlaxelService.execProcess(url, req),
+                sandboxUrl,
+                SANDBOX_APP_PORT,
+            )
+            logging.info("App ready", { sandboxName })
+
+            const envRecord = await d.providers.EnvironmentModel.create({
+                orgId,
+                sandboxName,
+                sandboxUrl,
+                previewUrl: previewUrlDisplay,
+                createdBy,
+                status: "active",
+            })
+
+            return {
+                environmentId: envRecord.id,
+                sandboxName,
+                sandboxUrl,
+                previewUrl: previewUrlDisplay,
+                status: envRecord.status,
+            }
+        } catch (error) {
+            throw new XError({
+                message: "spinUpBlaxelSandboxWithCartageAgentWorkflow generic catch error",
+                data: params,
+                cause: error as Error,
+            })
+        }
     }
-  }
 
 export const spinUpBlaxelSandboxWithCartageAgentWorkflow =
-  spinUpBlaxelSandboxWithCartageAgentWorkflowWithDeps({
-    providers: allProviders,
-  })
+    spinUpBlaxelSandboxWithCartageAgentWorkflowWithDeps({
+        providers: allProviders,
+    })
