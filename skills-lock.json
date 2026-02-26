@@ -1,0 +1,10 @@
+{
+    "version": 1,
+    "skills": {
+        "blaxel": {
+            "source": "blaxel/ai",
+            "sourceType": "well-known",
+            "computedHash": "251083aa100669f7c9af2bb9c8fcc9afdd2ae9b692f111c5c82c2169036666f9"
+        }
+    }
+}

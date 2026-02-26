@@ -1,279 +1,176 @@
 /**
- * Thin wrapper around Blaxel Control Plane and Sandbox Process APIs. No business logic.
+ * Thin wrapper around @blaxel/core SDK. No business logic.
  * See cartage-agent src/server/services/CLAUDE.md.
  */
-import { XError } from "@/utils/error.utils";
+import { XError } from "@/utils/error.utils"
 import {
-  BL_CONTROL_PLANE_BASE,
-  getBlaxelAuthHeaders,
-  getBlaxelWorkspace,
-} from "./utils/blaxelAuth.utils";
+    SandboxInstance,
+    VolumeInstance,
+    type SandboxCreateConfiguration,
+    type VolumeCreateConfiguration,
+    type ProcessRequestWithLog,
+    type ProcessResponseWithLog,
+} from "@blaxel/core"
+import logging from "@/utils/logger.utils"
 
-export type BlaxelVolumeAttachment = {
-  name: string;
-  mountPath: string;
-  readOnly?: boolean;
-};
+export type { SandboxCreateConfiguration, VolumeCreateConfiguration }
 
-export type BlaxelSandboxSpec = {
-  metadata: { name: string };
-  spec: {
-    runtime: {
-      image: string;
-      memory?: number;
-      ports?: Array<{ target: number }>;
-      ttl?: string;
-    };
-    region?: string;
-    volumes?: BlaxelVolumeAttachment[];
-  };
-};
+export type BlaxelSandbox = SandboxInstance
 
-export type BlaxelSandbox = {
-  metadata: {
-    name: string;
-    workspace?: string;
-    url?: string;
-  };
-  spec?: BlaxelSandboxSpec["spec"];
-  status?: string;
-};
+export type BlaxelVolume = VolumeInstance
 
-export type BlaxelProcessRequest = {
-  command: string;
-  name?: string;
-  workingDir?: string;
-  env?: Record<string, string>;
-  timeout?: number;
-  waitForCompletion?: boolean;
-  waitForPorts?: number[];
-};
+export type BlaxelProcessRequest = ProcessRequestWithLog
 
-export type BlaxelProcessResponse = {
-  exitCode: number;
-  stdout?: string;
-  stderr?: string;
-  logs?: string;
-  status?: string;
-};
+export type BlaxelProcessResponse = ProcessResponseWithLog
 
 export type BlaxelPreviewSpec = {
-  port: number;
-  public: boolean;
-};
+    port: number
+    public: boolean
+}
 
 export type BlaxelPreview = {
-  metadata: { name: string };
-  spec?: { url?: string; port?: number; public?: boolean };
-  status?: string;
-};
+    metadata: { name: string }
+    spec?: { url?: string; port?: number; public?: boolean }
+    status?: string
+}
 
 /** Create a volume (e.g. for install space). Size in MB. */
-const createVolume = async (
-  name: string,
-  sizeMb: number,
-  region?: string,
-): Promise<{
-  metadata: { name: string };
-  spec: { size: number; region?: string };
-}> => {
-  try {
-    const body: {
-      metadata: { name: string };
-      spec: { size: number; region?: string };
-    } = {
-      metadata: { name },
-      spec: { size: sizeMb },
-    };
-    if (region) body.spec.region = region;
-    const res = await fetch(`${BL_CONTROL_PLANE_BASE}/volumes`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Blaxel-Workspace": getBlaxelWorkspace(),
-        ...getBlaxelAuthHeaders(),
-      },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`Blaxel createVolume ${res.status}: ${text}`);
+const createVolume = async (config: VolumeCreateConfiguration): Promise<BlaxelVolume> => {
+    try {
+        return await VolumeInstance.create(config)
+    } catch (error) {
+        throw new XError({
+            message: "BlaxelService.createVolume: Error creating volume",
+            cause: error as Error,
+            data: { config },
+        })
     }
-    return (await res.json()) as {
-      metadata: { name: string };
-      spec: { size: number; region?: string };
-    };
-  } catch (error) {
-    throw new XError({
-      message: "BlaxelService.createVolume: Error creating volume",
-      cause: error as Error,
-      data: { name, sizeMb },
-    });
-  }
-};
+}
 
-const createSandbox = async (
-  spec: BlaxelSandboxSpec,
-): Promise<BlaxelSandbox> => {
-  try {
-    const res = await fetch(`${BL_CONTROL_PLANE_BASE}/sandboxes`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Blaxel-Workspace": getBlaxelWorkspace(),
-        ...getBlaxelAuthHeaders(),
-      },
-      body: JSON.stringify(spec),
-    });
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`Blaxel createSandbox ${res.status}: ${body}`);
+/** Delete a volume by name. Silently fails if volume doesn't exist. */
+const deleteVolume = async (volumeName: string): Promise<void> => {
+    try {
+        await VolumeInstance.delete(volumeName)
+    } catch (error) {
+        logging.error(
+            `BlaxelService.deleteVolume: Error deleting volume ${volumeName}: ${(error as Error).message}`,
+        )
     }
-    return (await res.json()) as BlaxelSandbox;
-  } catch (error) {
-    throw new XError({
-      message: "BlaxelService.createSandbox: Error creating sandbox",
-      cause: error as Error,
-      data: { spec },
-    });
-  }
-};
+}
+
+const createSandbox = async (config: SandboxCreateConfiguration): Promise<BlaxelSandbox> => {
+    try {
+        return await SandboxInstance.create(config)
+    } catch (error) {
+        throw new XError({
+            message: "BlaxelService.createSandbox: Error creating sandbox",
+            cause: error as Error,
+            data: { config },
+        })
+    }
+}
 
 const getSandbox = async (sandboxName: string): Promise<BlaxelSandbox> => {
-  try {
-    const res = await fetch(
-      `${BL_CONTROL_PLANE_BASE}/sandboxes/${encodeURIComponent(sandboxName)}`,
-      {
-        method: "GET",
-        headers: {
-          "X-Blaxel-Workspace": getBlaxelWorkspace(),
-          ...getBlaxelAuthHeaders(),
-        },
-      },
-    );
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`Blaxel getSandbox ${res.status}: ${body}`);
+    try {
+        return await SandboxInstance.get(sandboxName)
+    } catch (error) {
+        throw new XError({
+            message: "BlaxelService.getSandbox: Error getting sandbox",
+            cause: error as Error,
+            data: { sandboxName },
+        })
     }
-    return (await res.json()) as BlaxelSandbox;
-  } catch (error) {
-    throw new XError({
-      message: "BlaxelService.getSandbox: Error getting sandbox",
-      cause: error as Error,
-      data: { sandboxName },
-    });
-  }
-};
+}
+
+/** Delete a sandbox by name. Silently fails if sandbox doesn't exist. */
+const deleteSandbox = async (sandboxName: string): Promise<void> => {
+    try {
+        await SandboxInstance.delete(sandboxName)
+    } catch (error) {
+        logging.error(
+            `BlaxelService.deleteSandbox: Error deleting sandbox ${sandboxName}: ${(error as Error).message}`,
+        )
+    }
+}
 
 const execProcess = async (
-  sandboxBaseUrl: string,
-  processRequest: BlaxelProcessRequest,
+    sandbox: BlaxelSandbox,
+    processRequest: BlaxelProcessRequest,
 ): Promise<BlaxelProcessResponse> => {
-  try {
-    const url = sandboxBaseUrl.replace(/\/$/, "") + "/process";
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Blaxel-Workspace": getBlaxelWorkspace(),
-        ...getBlaxelAuthHeaders(),
-      },
-      body: JSON.stringify(processRequest),
-    });
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`Blaxel execProcess ${res.status}: ${body}`);
+    try {
+        const result = await sandbox.process.exec(processRequest)
+        return result as BlaxelProcessResponse
+    } catch (error) {
+        throw new XError({
+            message: "BlaxelService.execProcess: Error executing process in sandbox",
+            cause: error as Error,
+            data: { sandboxName: sandbox.metadata.name, command: processRequest.command },
+        })
     }
-    return (await res.json()) as BlaxelProcessResponse;
-  } catch (error) {
-    throw new XError({
-      message: "BlaxelService.execProcess: Error executing process in sandbox",
-      cause: error as Error,
-      data: { sandboxBaseUrl, command: processRequest.command },
-    });
-  }
-};
+}
 
 /**
  * Write a file or directory to the sandbox via the sandbox filesystem API.
- * sandboxBaseUrl is the sandbox API URL (e.g. metadata.url from getSandbox).
  */
 const writeFile = async (
-  sandboxBaseUrl: string,
-  path: string,
-  content: string,
-  options?: { isDirectory?: boolean },
+    sandbox: BlaxelSandbox,
+    path: string,
+    content: string,
+    options?: { isDirectory?: boolean },
 ): Promise<{ message: string; path: string }> => {
-  try {
-    const url =
-      sandboxBaseUrl.replace(/\/$/, "") +
-      "/filesystem/" +
-      encodeURIComponent(path.startsWith("/") ? path : "/" + path);
-    const res = await fetch(url, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Blaxel-Workspace": getBlaxelWorkspace(),
-        ...getBlaxelAuthHeaders(),
-      },
-      body: JSON.stringify({
-        content: options?.isDirectory ? "" : content,
-        isDirectory: options?.isDirectory ?? false,
-      }),
-    });
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`Blaxel writeFile ${res.status}: ${body}`);
+    try {
+        if (options?.isDirectory) {
+            // For directories, the SDK doesn't have a specific method, so we use exec
+            await sandbox.process.exec({
+                command: `mkdir -p ${path}`,
+                waitForCompletion: true,
+            })
+            return { message: "Directory created", path }
+        }
+        await sandbox.fs.write(path, content)
+        return { message: "File written", path }
+    } catch (error) {
+        throw new XError({
+            message: "BlaxelService.writeFile: Error writing file in sandbox",
+            cause: error as Error,
+            data: { sandboxName: sandbox.metadata.name, path, contentLength: content?.length },
+        })
     }
-    return (await res.json()) as { message: string; path: string };
-  } catch (error) {
-    throw new XError({
-      message: "BlaxelService.writeFile: Error writing file in sandbox",
-      cause: error as Error,
-      data: { sandboxBaseUrl, path, contentLength: content?.length },
-    });
-  }
-};
+}
 
 const createPreview = async (
-  sandboxName: string,
-  spec: BlaxelPreviewSpec,
+    sandbox: BlaxelSandbox,
+    spec: BlaxelPreviewSpec,
 ): Promise<BlaxelPreview> => {
-  try {
-    const res = await fetch(
-      `${BL_CONTROL_PLANE_BASE}/sandboxes/${encodeURIComponent(sandboxName)}/previews`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Blaxel-Workspace": getBlaxelWorkspace(),
-          ...getBlaxelAuthHeaders(),
-        },
-        body: JSON.stringify({
-          metadata: { name: "app-preview" },
-          spec: { port: spec.port, public: spec.public },
-        }),
-      },
-    );
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`Blaxel createPreview ${res.status}: ${body}`);
+    try {
+        const preview = await sandbox.previews.create({
+            metadata: { name: "app-preview" },
+            spec: { port: spec.port, public: spec.public },
+        })
+        return {
+            metadata: { name: preview.name },
+            spec: {
+                url: preview.spec?.url,
+                port: preview.spec?.port,
+                public: preview.spec?.public,
+            },
+        }
+    } catch (error) {
+        throw new XError({
+            message: "BlaxelService.createPreview: Error creating preview",
+            cause: error as Error,
+            data: { sandboxName: sandbox.metadata.name, spec },
+        })
     }
-    return (await res.json()) as BlaxelPreview;
-  } catch (error) {
-    throw new XError({
-      message: "BlaxelService.createPreview: Error creating preview",
-      cause: error as Error,
-      data: { sandboxName, spec },
-    });
-  }
-};
+}
 
 export const BlaxelService = {
-  createVolume,
-  createSandbox,
-  getSandbox,
-  execProcess,
-  writeFile,
-  createPreview,
-};
+    createVolume,
+    deleteVolume,
+    createSandbox,
+    getSandbox,
+    deleteSandbox,
+    execProcess,
+    writeFile,
+    createPreview,
+}

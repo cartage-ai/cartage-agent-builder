@@ -3,6 +3,6 @@
  */
 
 export function getTraceLink(runId?: string): string | undefined {
-  if (!process.env.LANGCHAIN_PROJECT_ID || !runId) return undefined
-  return `https://smith.langchain.com/projects/p/${process.env.LANGCHAIN_PROJECT_ID}/r/${runId}`
+    if (!process.env.LANGCHAIN_PROJECT_ID || !runId) return undefined
+    return `https://smith.langchain.com/projects/p/${process.env.LANGCHAIN_PROJECT_ID}/r/${runId}`
 }

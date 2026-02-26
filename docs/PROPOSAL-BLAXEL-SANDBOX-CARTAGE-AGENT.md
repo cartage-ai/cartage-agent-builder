@@ -13,13 +13,13 @@ So: “infinite” environments, each with **AI coding in context** + **live pre
 
 ## How this affects the proposal
 
-| Aspect | Before | After (with your goal) |
-|--------|--------|------------------------|
-| **Scale** | One-off “spin up a sandbox” | **Multi-environment**: list, create (many), optional delete; persistence so users see “My environments.” |
-| **Identity** | No ownership | **Per-user or per-team**: who created which environment; list filtered by user (or org). |
-| **Preview** | Sandbox exists, clone repo | **Live preview URL**: expose port (e.g. 3000), **start the dev server** in the sandbox after clone (`bun install && bun run dev` as long-running process), and document/return the **preview URL** (e.g. Blaxel’s URL for that port). |
+| Aspect          | Before                             | After (with your goal)                                                                                                                                                                                                                                    |
+| --------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Scale**       | One-off “spin up a sandbox”        | **Multi-environment**: list, create (many), optional delete; persistence so users see “My environments.”                                                                                                                                                  |
+| **Identity**    | No ownership                       | **Per-user or per-team**: who created which environment; list filtered by user (or org).                                                                                                                                                                  |
+| **Preview**     | Sandbox exists, clone repo         | **Live preview URL**: expose port (e.g. 3000), **start the dev server** in the sandbox after clone (`bun install && bun run dev` as long-running process), and document/return the **preview URL** (e.g. Blaxel’s URL for that port).                     |
 | **Claude Code** | Implicit “you can use the sandbox” | **Explicit**: the environment is the **context for Claude Code** – either (a) Cursor/Claude-in-the-cloud pointed at this Blaxel env, or (b) our own “chat + run in sandbox” (Claude API + Blaxel Process API to run commands). Design choice to call out. |
-| **Data model** | No persistence for MVP | **Environment (or DevEnvironment) model**: sandbox name, sandbox URL, preview URL, createdBy, createdAt, status; required for “list my environments” and cleanup. |
+| **Data model**  | No persistence for MVP             | **Environment (or DevEnvironment) model**: sandbox name, sandbox URL, preview URL, createdBy, createdAt, status; required for “list my environments” and cleanup.                                                                                         |
 
 The rest of the technical flow (Blaxel create → clone repo → run commands) stays; we add **persistence**, **preview startup**, and **multi-env UI**.
 
@@ -48,13 +48,13 @@ The rest of the technical flow (Blaxel create → clone repo → run commands) s
 
 ### Components
 
-| Layer | Responsibility |
-|-------|----------------|
-| **UI** | **List** of user’s environments (cards or table: name, preview URL, created, status). **Create**: “New environment” button → loading → new row with preview link. Optional: delete, rename. |
-| **API** | `POST /api/environments` (create), `GET /api/environments` (list, filter by user). Optionally `DELETE /api/environments/[id]` and `GET /api/environments/[id]`. |
-| **Workflow** | Same workflow, extended: after clone, **start dev server** (exec with waitForCompletion: false), then build **preview URL** (e.g. from Blaxel port mapping). Returns data for Environment record. |
-| **Persistence** | **Environment** model (or reuse/rename Example): sandboxId/name, sandboxUrl, previewUrl, createdBy (userId or email), createdAt, status. Enables list and “infinite” without losing track. |
-| **Blaxel client** | Unchanged: createSandbox, execProcess; add **getSandbox** for polling if needed. |
+| Layer             | Responsibility                                                                                                                                                                                    |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **UI**            | **List** of user’s environments (cards or table: name, preview URL, created, status). **Create**: “New environment” button → loading → new row with preview link. Optional: delete, rename.       |
+| **API**           | `POST /api/environments` (create), `GET /api/environments` (list, filter by user). Optionally `DELETE /api/environments/[id]` and `GET /api/environments/[id]`.                                   |
+| **Workflow**      | Same workflow, extended: after clone, **start dev server** (exec with waitForCompletion: false), then build **preview URL** (e.g. from Blaxel port mapping). Returns data for Environment record. |
+| **Persistence**   | **Environment** model (or reuse/rename Example): sandboxId/name, sandboxUrl, previewUrl, createdBy (userId or email), createdAt, status. Enables list and “infinite” without losing track.        |
+| **Blaxel client** | Unchanged: createSandbox, execProcess; add **getSandbox** for polling if needed.                                                                                                                  |
 
 ### “Talk to Claude Code”
 
@@ -104,16 +104,16 @@ Either way, the **environment is the unit of context**; the proposal assumes we 
 
 ## File changes summary (revised)
 
-| Action | Path |
-|--------|------|
-| Add | `src/server/services/BlaxelService.ts` |
-| Add | `src/server/workflows/spinUpBlaxelSandboxWithCartageAgentWorkflow/` (create → clone → start dev server → return URLs) |
-| Add | **Environment** schema + model (e.g. `src/schemas/environment.schema.ts`, `src/server/db/models/EnvironmentModel/`) and add to kitchenSinkProviders |
-| Add | `src/app/api/environments/route.ts` (GET list, POST create) |
-| Add | `src/app/api/environments/[id]/route.ts` (optional GET, DELETE) |
-| Modify | `kitchenSinkProviders.ts` — BlaxelService + Environment model |
-| Modify | UI — “My environments” list + “New environment” + preview link (+ later “Open in Claude Code”) |
-| Add | `.env.example` — `BL_API_KEY`, `BL_WORKSPACE` |
+| Action | Path                                                                                                                                                |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Add    | `src/server/services/BlaxelService.ts`                                                                                                              |
+| Add    | `src/server/workflows/spinUpBlaxelSandboxWithCartageAgentWorkflow/` (create → clone → start dev server → return URLs)                               |
+| Add    | **Environment** schema + model (e.g. `src/schemas/environment.schema.ts`, `src/server/db/models/EnvironmentModel/`) and add to kitchenSinkProviders |
+| Add    | `src/app/api/environments/route.ts` (GET list, POST create)                                                                                         |
+| Add    | `src/app/api/environments/[id]/route.ts` (optional GET, DELETE)                                                                                     |
+| Modify | `kitchenSinkProviders.ts` — BlaxelService + Environment model                                                                                       |
+| Modify | UI — “My environments” list + “New environment” + preview link (+ later “Open in Claude Code”)                                                      |
+| Add    | `.env.example` — `BL_API_KEY`, `BL_WORKSPACE`                                                                                                       |
 
 ---
 

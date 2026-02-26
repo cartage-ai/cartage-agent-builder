@@ -88,17 +88,13 @@ export const spinUpBlaxelSandboxWithCartageAgentWorkflowWithDeps =
 
             // 1. Create sandbox (repo + node_modules are baked into the image)
             logging.info("Creating sandbox", { sandboxName })
-            await d.providers.BlaxelService.createSandbox({
-                metadata: { name: sandboxName },
-                spec: {
-                    runtime: {
-                        image: sandboxImage,
-                        memory: 8192,
-                        ports: [{ target: SANDBOX_APP_PORT }],
-                        ttl: "24h",
-                        envs: sandboxEnvs,
-                    },
-                },
+            const sandbox = await d.providers.BlaxelService.createSandbox({
+                name: sandboxName,
+                image: sandboxImage,
+                memory: 8192,
+                ports: [{ target: SANDBOX_APP_PORT }],
+                ttl: "24h",
+                envs: sandboxEnvs,
             })
 
             const sandboxUrl = await waitUntilDeployed(
@@ -106,7 +102,7 @@ export const spinUpBlaxelSandboxWithCartageAgentWorkflowWithDeps =
                 sandboxName,
             )
 
-            const preview = await d.providers.BlaxelService.createPreview(sandboxName, {
+            const preview = await d.providers.BlaxelService.createPreview(sandbox, {
                 port: SANDBOX_APP_PORT,
                 public: true,
             })
@@ -116,7 +112,7 @@ export const spinUpBlaxelSandboxWithCartageAgentWorkflowWithDeps =
 
             // 2. Start dev server (repo + node_modules already in image at CARTAGE_AGENT_PATH)
             logging.info("Starting dev server", { sandboxName })
-            await d.providers.BlaxelService.execProcess(sandboxUrl, {
+            await d.providers.BlaxelService.execProcess(sandbox, {
                 name: "dev-server",
                 command: `sh -c "PORT=${SANDBOX_APP_PORT} bun run dev -- --hostname 0.0.0.0"`,
                 workingDir: CARTAGE_AGENT_PATH,
@@ -125,8 +121,8 @@ export const spinUpBlaxelSandboxWithCartageAgentWorkflowWithDeps =
             logging.info("Dev server started", { sandboxName })
 
             await waitUntilAppReady(
-                (url, req) => d.providers.BlaxelService.execProcess(url, req),
-                sandboxUrl,
+                (sbx, req) => d.providers.BlaxelService.execProcess(sbx, req),
+                sandbox,
                 SANDBOX_APP_PORT,
             )
             logging.info("App ready", { sandboxName })

@@ -5,6 +5,7 @@ import {
     waitUntilAppReady,
 } from "../utils/spinUpBlaxelSandboxWithCartageAgentWorkflow.utils"
 import { XError } from "@/utils/error.utils"
+import type { SandboxInstance } from "@blaxel/core"
 
 describe("generateSandboxName", () => {
     it("starts with 'cartage-agent-'", () => {
@@ -22,7 +23,7 @@ describe("waitUntilDeployed", () => {
             Promise.resolve({
                 status: "DEPLOYED",
                 metadata: { url: "https://sandbox.example.com" },
-            }),
+            } as unknown as SandboxInstance),
         )
         const url = await waitUntilDeployed(getSandbox, "my-sandbox")
         expect(url).toBe("https://sandbox.example.com")
@@ -33,12 +34,15 @@ describe("waitUntilDeployed", () => {
         const getSandbox = mock(() => {
             calls++
             if (calls < 3) {
-                return Promise.resolve({ status: "PENDING", metadata: {} })
+                return Promise.resolve({
+                    status: "PENDING",
+                    metadata: {},
+                } as unknown as SandboxInstance)
             }
             return Promise.resolve({
                 status: "DEPLOYED",
                 metadata: { url: "https://sandbox.example.com" },
-            })
+            } as unknown as SandboxInstance)
         })
         const url = await waitUntilDeployed(getSandbox, "my-sandbox")
         expect(url).toBe("https://sandbox.example.com")
@@ -46,22 +50,32 @@ describe("waitUntilDeployed", () => {
     })
 
     it("throws XError when status is FAILED", async () => {
-        const getSandbox = mock(() => Promise.resolve({ status: "FAILED", metadata: {} }))
+        const getSandbox = mock(() =>
+            Promise.resolve({
+                status: "FAILED",
+                metadata: {},
+            } as unknown as SandboxInstance),
+        )
         await expect(waitUntilDeployed(getSandbox, "my-sandbox")).rejects.toBeInstanceOf(XError)
     })
 
     it("throws XError when status is TERMINATED", async () => {
-        const getSandbox = mock(() => Promise.resolve({ status: "TERMINATED", metadata: {} }))
+        const getSandbox = mock(() =>
+            Promise.resolve({
+                status: "TERMINATED",
+                metadata: {},
+            } as unknown as SandboxInstance),
+        )
         await expect(waitUntilDeployed(getSandbox, "my-sandbox")).rejects.toBeInstanceOf(XError)
     })
 })
 
 describe("waitUntilAppReady", () => {
+    const mockSandbox = {} as SandboxInstance
+
     it("resolves when curl returns 200", async () => {
         const execProcess = mock(() => Promise.resolve({ exitCode: 0, stdout: "200", stderr: "" }))
-        await expect(
-            waitUntilAppReady(execProcess, "https://sandbox.example.com", 3000),
-        ).resolves.toBeUndefined()
+        await expect(waitUntilAppReady(execProcess, mockSandbox, 3000)).resolves.toBeUndefined()
     })
 
     it("retries until 200 is returned", async () => {
@@ -73,7 +87,7 @@ describe("waitUntilAppReady", () => {
             }
             return Promise.resolve({ exitCode: 0, stdout: "200", stderr: "" })
         })
-        await waitUntilAppReady(execProcess, "https://sandbox.example.com", 3000)
+        await waitUntilAppReady(execProcess, mockSandbox, 3000)
         expect(calls).toBe(3)
     })
 
@@ -92,9 +106,9 @@ describe("waitUntilAppReady", () => {
         }
 
         try {
-            await expect(
-                waitUntilAppReady(execProcess, "https://sandbox.example.com", 3000),
-            ).rejects.toBeInstanceOf(XError)
+            await expect(waitUntilAppReady(execProcess, mockSandbox, 3000)).rejects.toBeInstanceOf(
+                XError,
+            )
         } finally {
             Date.now = realDateNow
         }

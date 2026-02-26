@@ -3,20 +3,20 @@
 This app mirrors **cartage-agent** patterns for **workflows**, **utils**, and **models** so coding agents have a single reference.
 
 - **Full guidelines:** See the [cartage-agent](https://github.com/cartage-ai/cartage-agent) repo:
-  - Root: `CLAUDE.md` (architecture, auth, naming, XError, etc.)
-  - Workflows: `src/server/workflows/CLAUDE.md`
-  - Models: `src/server/db/models/CLAUDE.md`
-  - Services: `src/server/services/CLAUDE.md`
+    - Root: `CLAUDE.md` (architecture, auth, naming, XError, etc.)
+    - Workflows: `src/server/workflows/CLAUDE.md`
+    - Models: `src/server/db/models/CLAUDE.md`
+    - Services: `src/server/services/CLAUDE.md`
 
 ## Reference implementations in this repo
 
-| Concept   | Reference implementation | Purpose |
-|----------|---------------------------|--------|
-| **Workflow** | `src/server/workflows/getBuildInfoWorkflow/` | Folder layout, WithDeps, single start log, try/catch XError, optional workflow-scoped utils |
-| **Util**     | `src/utils/error.utils.ts` + `getBuildInfoWorkflow/utils/getBuildInfoWorkflow.utils.ts` | Shared util (XError); workflow-scoped pure utils in `workflowName/utils/` |
-| **Model**    | `src/schemas/example.schema.ts` + `src/server/db/models/createModel.ts` + `src/server/db/models/ExampleModel/` (index.ts + exampleModel.ts) | Shared Zod schema in `src/schemas/`; each model in its own folder with index.ts; all use **createModel** (Firestore). |
-| **Providers** | `src/server/workflows/kitchenSinkProviders.ts` | Single registry: `modelsMap`, `servicesMap`, `allProviders`. Workflows inject `providers: typeof allProviders`. |
-| **Service** | `src/server/services/GitHubService.ts` + `src/server/services/CLAUDE.md` | Thin wrapper: singleton client, default export object, try/catch + XError with `[ServiceName].[functionName]: Error ...`. |
+| Concept       | Reference implementation                                                                                                                    | Purpose                                                                                                                   |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| **Workflow**  | `src/server/workflows/getBuildInfoWorkflow/`                                                                                                | Folder layout, WithDeps, single start log, try/catch XError, optional workflow-scoped utils                               |
+| **Util**      | `src/utils/error.utils.ts` + `getBuildInfoWorkflow/utils/getBuildInfoWorkflow.utils.ts`                                                     | Shared util (XError); workflow-scoped pure utils in `workflowName/utils/`                                                 |
+| **Model**     | `src/schemas/example.schema.ts` + `src/server/db/models/createModel.ts` + `src/server/db/models/ExampleModel/` (index.ts + exampleModel.ts) | Shared Zod schema in `src/schemas/`; each model in its own folder with index.ts; all use **createModel** (Firestore).     |
+| **Providers** | `src/server/workflows/kitchenSinkProviders.ts`                                                                                              | Single registry: `modelsMap`, `servicesMap`, `allProviders`. Workflows inject `providers: typeof allProviders`.           |
+| **Service**   | `src/server/services/GitHubService.ts` + `src/server/services/CLAUDE.md`                                                                    | Thin wrapper: singleton client, default export object, try/catch + XError with `[ServiceName].[functionName]: Error ...`. |
 
 ## Quick rules (from cartage-agent)
 

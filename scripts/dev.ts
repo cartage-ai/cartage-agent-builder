@@ -10,40 +10,40 @@ import { SecretService } from "../src/server/services/SecretService"
 import { spawn } from "child_process"
 
 async function startDevServer() {
-  console.log("🔧 Loading secrets from Secret Manager...")
+    console.log("🔧 Loading secrets from Secret Manager...")
 
-  try {
-    const secrets = await SecretService.getSecrets()
-    console.log(`✅ Loaded ${Object.keys(secrets).length} secrets`)
+    try {
+        const secrets = await SecretService.getSecrets()
+        console.log(`✅ Loaded ${Object.keys(secrets).length} secrets`)
 
-    const env = {
-      ...secrets,
-      ...process.env,
+        const env = {
+            ...secrets,
+            ...process.env,
+        }
+
+        console.log("🚀 Starting Next.js dev server (Bun runtime)...")
+
+        const nextDev = spawn("bun", ["--bun", "next", "dev", "-p", "3001"], {
+            stdio: "inherit",
+            env,
+        })
+
+        process.on("SIGINT", () => nextDev.kill("SIGINT"))
+        process.on("SIGTERM", () => nextDev.kill("SIGTERM"))
+
+        nextDev.on("exit", (code) => {
+            process.exit(code ?? 0)
+        })
+    } catch (error) {
+        console.error("❌ Failed to load secrets:", error)
+        console.warn("⚠️  Starting dev server without secrets...")
+        const nextDev = spawn("bun", ["--bun", "next", "dev", "-p", "3001"], {
+            stdio: "inherit",
+        })
+        process.on("SIGINT", () => nextDev.kill("SIGINT"))
+        process.on("SIGTERM", () => nextDev.kill("SIGTERM"))
+        nextDev.on("exit", (code) => process.exit(code ?? 0))
     }
-
-    console.log("🚀 Starting Next.js dev server (Bun runtime)...")
-
-    const nextDev = spawn("bun", ["--bun", "next", "dev", "-p", "3001"], {
-      stdio: "inherit",
-      env,
-    })
-
-    process.on("SIGINT", () => nextDev.kill("SIGINT"))
-    process.on("SIGTERM", () => nextDev.kill("SIGTERM"))
-
-    nextDev.on("exit", (code) => {
-      process.exit(code ?? 0)
-    })
-  } catch (error) {
-    console.error("❌ Failed to load secrets:", error)
-    console.warn("⚠️  Starting dev server without secrets...")
-    const nextDev = spawn("bun", ["--bun", "next", "dev", "-p", "3001"], {
-      stdio: "inherit",
-    })
-    process.on("SIGINT", () => nextDev.kill("SIGINT"))
-    process.on("SIGTERM", () => nextDev.kill("SIGTERM"))
-    nextDev.on("exit", (code) => process.exit(code ?? 0))
-  }
 }
 
 startDevServer()

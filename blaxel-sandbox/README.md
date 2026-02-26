@@ -6,16 +6,16 @@ This directory defines a **custom Blaxel sandbox template** with **Bun and CLI t
 
 1. **From this directory**, ensure you're logged in to Blaxel (`bl login`), then:
 
-   ```bash
-   cd blaxel-sandbox
-   bl deploy
-   ```
+    ```bash
+    cd blaxel-sandbox
+    bl deploy
+    ```
 
 2. **Get the image ID** and set it in your app:
-   ```bash
-   bl get sandbox cartage-agent-sandbox -o json | jq -r '.spec.runtime.image'
-   ```
-   Add **`BLAXEL_SANDBOX_IMAGE`** to Secret Manager (or env) with that value. Set **`GITHUB_TOKEN`** (env or Secret Manager) so the workflow can clone cartage-agent in the sandbox.
+    ```bash
+    bl get sandbox cartage-agent-sandbox -o json | jq -r '.spec.runtime.image'
+    ```
+    Add **`BLAXEL_SANDBOX_IMAGE`** to Secret Manager (or env) with that value. Set **`GITHUB_TOKEN`** (env or Secret Manager) so the workflow can clone cartage-agent in the sandbox.
 
 ## What’s in the image
 

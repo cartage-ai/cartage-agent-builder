@@ -8,43 +8,43 @@ import { allProviders } from "../kitchenSinkProviders"
 import { formatBuildInfo } from "./utils/getBuildInfoWorkflow.utils"
 
 export type GetBuildInfoWorkflowParams = {
-  appVersion?: string
-  env?: string
+    appVersion?: string
+    env?: string
 }
 
 export type GetBuildInfoWorkflowDependencies = {
-  providers: typeof allProviders
+    providers: typeof allProviders
 }
 
 export type GetBuildInfoWorkflowResult = {
-  version: string
-  env: string
-  timestamp: string
+    version: string
+    env: string
+    timestamp: string
 }
 
 export type GetBuildInfoWorkflow = (
-  params: GetBuildInfoWorkflowParams
+    params: GetBuildInfoWorkflowParams,
 ) => Promise<GetBuildInfoWorkflowResult>
 
 export const getBuildInfoWorkflowWithDeps =
-  (d: GetBuildInfoWorkflowDependencies): GetBuildInfoWorkflow =>
-  async (params) => {
-    void d /* services/models via d.providers when needed */
-    logging.info("Starting getBuildInfoWorkflow", params)
+    (d: GetBuildInfoWorkflowDependencies): GetBuildInfoWorkflow =>
+    async (params) => {
+        void d /* services/models via d.providers when needed */
+        logging.info("Starting getBuildInfoWorkflow", params)
 
-    try {
-      const version = params.appVersion ?? process.env.npm_package_version ?? "0.1.0"
-      const env = params.env ?? process.env.NODE_ENV ?? "development"
-      return formatBuildInfo(version, env)
-    } catch (error) {
-      throw new XError({
-        message: "getBuildInfoWorkflow generic catch error",
-        data: params,
-        cause: error as Error,
-      })
+        try {
+            const version = params.appVersion ?? process.env.npm_package_version ?? "0.1.0"
+            const env = params.env ?? process.env.NODE_ENV ?? "development"
+            return formatBuildInfo(version, env)
+        } catch (error) {
+            throw new XError({
+                message: "getBuildInfoWorkflow generic catch error",
+                data: params,
+                cause: error as Error,
+            })
+        }
     }
-  }
 
 export const getBuildInfoWorkflow = getBuildInfoWorkflowWithDeps({
-  providers: allProviders,
+    providers: allProviders,
 })

@@ -29,6 +29,6 @@ Set `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY` (or `
 
 1. Add schema and search filters in `src/schemas/[name].schema.ts`.
 2. Add folder `src/server/db/models/[Name]Model/` with:
-   - `[name]Model.ts` – createModel(...) with that schema and searchConfig.handlers.
-   - `index.ts` – `export { [Name]Model } from "./[name]Model"`.
+    - `[name]Model.ts` – createModel(...) with that schema and searchConfig.handlers.
+    - `index.ts` – `export { [Name]Model } from "./[name]Model"`.
 3. Add the model to `modelsMap` in `src/server/workflows/kitchenSinkProviders.ts`.

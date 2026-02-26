@@ -1,6 +1,7 @@
 #!/bin/sh
 # Start the Blaxel sandbox API (required); keep container running.
-# The app (cartage-agent) is cloned and started by the workflow via the process API.
+# The app (cartage-agent) is baked into the image at /app/cartage-agent and
+# started by the workflow via the process API.
 
 /usr/local/bin/sandbox-api &
 
@@ -11,3 +12,4 @@ done
 
 echo "Sandbox API ready"
 wait
+
