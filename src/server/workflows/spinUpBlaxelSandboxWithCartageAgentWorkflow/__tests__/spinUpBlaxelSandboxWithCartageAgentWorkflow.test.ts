@@ -2,6 +2,7 @@ import { describe, it, expect, afterEach, mock } from "bun:test"
 import { mockDB } from "@/mocks/db.mock"
 import { spinUpBlaxelSandboxWithCartageAgentWorkflowWithDeps } from "../spinUpBlaxelSandboxWithCartageAgentWorkflow"
 import { XError } from "@/utils/error.utils"
+import type { SandboxInstance } from "@blaxel/core"
 
 const REQUIRED_ENV: Record<string, string> = {
     BLAXEL_SANDBOX_IMAGE: "blaxel/cartage-agent-sandbox:latest",
@@ -50,11 +51,26 @@ describe("spinUpBlaxelSandboxWithCartageAgentWorkflow", () => {
             Promise.resolve({
                 status: "DEPLOYED",
                 metadata: { name: "mock-sandbox", url: "https://mock-sandbox.blaxel.ai" },
-            }),
+            } as unknown as SandboxInstance),
         )
 
     const makeReadyExecMock = () =>
-        mock(() => Promise.resolve({ exitCode: 0, stdout: "200", stderr: "" }))
+        mock(() =>
+            Promise.resolve({
+                exitCode: 0,
+                stdout: "200",
+                stderr: "",
+                command: "curl",
+                completedAt: new Date().toISOString(),
+                logs: "",
+                name: "test",
+                startedAt: new Date().toISOString(),
+                status: "completed" as const,
+                workingDir: "/",
+                pid: "1234",
+                close: () => {},
+            }),
+        )
 
     it("throws XError when BLAXEL_SANDBOX_IMAGE is missing", async () => {
         setEnv({ BLAXEL_SANDBOX_IMAGE: undefined })
@@ -101,10 +117,11 @@ describe("spinUpBlaxelSandboxWithCartageAgentWorkflow", () => {
         expect(db.providerMocks.BlaxelService.createSandbox).toHaveBeenCalledTimes(1)
         const call = (db.providerMocks.BlaxelService.createSandbox as ReturnType<typeof mock>).mock
             .calls[0]![0] as {
-            spec: { runtime: { image: string; memory: number } }
+            image: string
+            memory: number
         }
-        expect(call.spec.runtime.image).toBe("blaxel/cartage-agent-sandbox:latest")
-        expect(call.spec.runtime.memory).toBe(8192)
+        expect(call.image).toBe("blaxel/cartage-agent-sandbox:latest")
+        expect(call.memory).toBe(8192)
     })
 
     it("strips SANDBOX_ prefix from env var names passed to the sandbox", async () => {
@@ -119,9 +136,9 @@ describe("spinUpBlaxelSandboxWithCartageAgentWorkflow", () => {
 
         const call = (db.providerMocks.BlaxelService.createSandbox as ReturnType<typeof mock>).mock
             .calls[0]![0] as {
-            spec: { runtime: { envs: { name: string; value: string }[] } }
+            envs: { name: string; value: string }[]
         }
-        const names = call.spec.runtime.envs.map((e) => e.name)
+        const names = call.envs.map((e) => e.name)
         expect(names).toContain("LINGODOTDEV_API_KEY")
         expect(names).not.toContain("SANDBOX_LINGODOTDEV_API_KEY")
     })
