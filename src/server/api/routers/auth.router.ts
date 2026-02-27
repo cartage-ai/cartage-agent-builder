@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { publicProcedure, router } from "../trpc"
+import { protectedProcedure, publicProcedure, router } from "../trpc"
 import { authLoginWorkflow } from "@/server/workflows/authLoginWorkflow"
 
 export const authRouter = router({
@@ -8,4 +8,6 @@ export const authRouter = router({
         .mutation(async ({ input }) => {
             return await authLoginWorkflow({ accessToken: input.accessToken })
         }),
+
+    validate: protectedProcedure.mutation(() => ({ ok: true })),
 })

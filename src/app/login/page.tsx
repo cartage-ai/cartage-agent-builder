@@ -13,7 +13,7 @@ export default function LoginPage() {
     const { redirectToLoginPage } = useRedirectFunctions()
     const router = useRouter()
 
-    const authLoginMutation = api.auth.authLogin.useMutation()
+    const { mutateAsync: authLogin } = api.auth.authLogin.useMutation()
 
     useEffect(() => {
         const login = async () => {
@@ -25,7 +25,7 @@ export default function LoginPage() {
             }
 
             try {
-                const result = await authLoginMutation.mutateAsync({ accessToken })
+                const result = await authLogin({ accessToken })
                 Cookies.set(SESSION_COOKIE_KEY, result.sessionToken, {
                     expires: 7,
                     secure: true,
@@ -39,15 +39,7 @@ export default function LoginPage() {
         }
 
         login()
-    }, [
-        isLoadingAuthInfo,
-        isLoggedIn,
-        accessToken,
-        authLoginMutation,
-        logout,
-        redirectToLoginPage,
-        router,
-    ])
+    }, [isLoadingAuthInfo, isLoggedIn, accessToken, authLogin, logout, redirectToLoginPage, router])
 
     return (
         <div className="flex min-h-screen items-center justify-center">

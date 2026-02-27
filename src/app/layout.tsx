@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google"
 import TrpcProvider from "./_trpc/provider"
 import "./globals.css"
 import { AuthProvider } from "@propelauth/nextjs/client"
+import { AuthGuard } from "@/components/AuthGuard"
 
 const geistSans = Geist({
     variable: "--font-geist-sans",
@@ -28,7 +29,9 @@ export default function RootLayout({
         <html lang="en">
             <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
                 <AuthProvider authUrl={process.env.NEXT_PUBLIC_AUTH_URL ?? ""}>
-                    <TrpcProvider>{children}</TrpcProvider>
+                    <TrpcProvider>
+                        <AuthGuard>{children}</AuthGuard>
+                    </TrpcProvider>
                 </AuthProvider>
             </body>
         </html>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 import Cookies from "js-cookie"
 import { SESSION_COOKIE_KEY } from "@/constants/app.constants"
 import { useLogoutFunction, useRedirectFunctions } from "@propelauth/nextjs/client"
@@ -8,8 +8,12 @@ import { useLogoutFunction, useRedirectFunctions } from "@propelauth/nextjs/clie
 export default function LogoutPage() {
     const logout = useLogoutFunction()
     const { redirectToLoginPage } = useRedirectFunctions()
+    const hasRun = useRef(false)
 
     useEffect(() => {
+        if (hasRun.current) return
+        hasRun.current = true
+
         const performLogout = async () => {
             Cookies.remove(SESSION_COOKIE_KEY)
             await logout()
